@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+        How to make a Kubernetes app from an OpenStack service?
+        Tale of kuryr-kubernetes' "kubernetization"
+    </title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <link rel="stylesheet" href="slides.css"></link>
+  </head>
+  <body>
+    <textarea id="source">
+
+layout: true
+name: title_layout
+class: title_slide
+
+---
+
+layout: true
+name: section_layout
+class: section_slide
+
+---
+
+layout: true
+name: agenda_layout
+class: content_slide agenda_slide
+
+---
+
+layout: true
+name: thank_you
+class: thank_you
+
+---
+
+layout: true
+name: content_layout
+class: content_slide
+
+---
+
+template: title_layout
+
+# How to make a Kubernetes app from an OpenStack service? 
+
+## Tale of kuryr-kubernetes' "kubernetization"
+
+Michał Dulko - Software Engineer - Red Hat<br>
+Daniel Mellado - Senior Software Engineer - Red Hat<br>
+<br>
+OpenStack Summit Berlin, 15.11.2018<br>
+
+---
+
+template: agenda_layout
+
+# Agenda
+--
+
+1. What's Kuryr-Kubernetes?
+   * What's CNI?
+   * What services it's consisting of?
+--
+
+2. Kuryr-Kubernetes requirements
+   * Deployment and leader election
+   * RBAC
+   * Configuration
+   * Host access
+   * Binary injection
+
+--
+
+Slides available at: **https://dulek.github.io/kuryr-kubernetization**
+
+---
+
+template: section_layout
+
+What's Kuryr-Kubernetes?
+
+---
+# Kuryr-Kubernetes
+
+## Logos or mascots
+
+
+#.left-column[![Insert graphic here](assets/kuryr-logo.png)]
+
+--
+
+#.right-column[.center[.half[![Insert graphic here](assets/kuryr-logo2.png)]]]
+
+---
+
+# Kuryr-Kubernetes
+
+## Primer
+
+* Kuryr-Kubernetes is part of OpenStack Kuryr project.
+--
+
+* Repo: https://git.openstack.org/openstack/kuryr-kubernetes
+* Written in Python, *kuryr-kubernetes* on Python Package Index.
+--
+
+* Developers from Red Hat, Huawei, Intel, Samsung…
+--
+
+* Out of experimental phase in **OpenStack Queens release** with version **0.4.3**.
+* Follows **cycle-with-intermediary** release model.
+
+--
+
+## Goals
+
+* Provide a Container Network Interface plugin that will use OpenStack Neutron
+  for Kubernetes Pods networking.
+* Provide kube-proxy equivalent that will use OpenStack Octavia for Kubernetes
+  Services loadbalancing and Ingress implementation.
+
+---
+
+# Kubernetes and CNI
+
+## Container Network Interface
+
+* Project governed by CNCF (*Cloud Native Computing Foundation*).
+* API is based on net.d configuration, executables and environment variables:
+  * CNI plugins are configured in net.d directory (default `/etc/cni/net.d`)
+    by config files. CNI starts looking from first file lexicographically, e.g.
+    `10-kuryr.conf`.
+  * CNI plugins are executables that should be run with parameters in env vars.
+     - `CNI_COMMAND` - either `ADD`, `DEL` or `VERSION`.
+     - `CNI_CONTAINERID` - unique container ID, key when storing state.
+     - `CNI_NETNS` - network namespace that interface should be placed in.
+     - `CNI_IFNAME` - requested name of the interface in the `CNI_NETNS`.
+
+---
+
+# Kubernetes and CNI
+
+## Container Network Interface
+
+* Project governed by CNCF (*Cloud Native Computing Foundation*).
+* API is based on net.d configuration, executables and environment variables:
+  * CNI plugins are configured in net.d directory (default `/etc/cni/net.d`)
+    by config files. CNI starts looking from first file lexicographically, e.g.
+    `10-kuryr.conf`.
+  * **CNI plugins are executables that should be run with parameters in env vars.**
+     - `CNI_COMMAND` - either `ADD`, `DEL` or `VERSION`.
+     - `CNI_CONTAINERID` - unique container ID, key when storing state.
+     - `CNI_NETNS` - network namespace that interface should be placed in.
+     - `CNI_IFNAME` - requested name of the interface in the `CNI_NETNS`.
+
+---
+
+# Kuryr-Kubernetes
+
+## Motivations
+
+--
+* Harness the power of OpenStack Neutron for your Kubernetes cluster!
+
+--
+
+.center[.seventy[![Insert graphic here](assets/neutron-meme.jpg)]]
+---
+
+# Kuryr-Kubernetes
+
+## Motivations
+
+* ~~Harness the power of OpenStack Neutron for your Kubernetes cluster!~~
+--
+
+* Use some of Neutron functionalities for Pods networking.
+--
+
+* Provide **interconnectivity** between OpenStack VMs and Kubernetes Pods and
+  Services.
+  * Pod->VM, VM->Pod
+  * VM->Services
+--
+
+* Avoiding having multiple network overlays in **Kubernetes on OpenStack**
+  deployments.
+
+---
+
+# Kuryr-Kubernetes
+
+## Multiple-Overlays
+
+.center[.seventy[![Insert graphic here](assets/multiple-overlays.svg)]]
+
+---
+
+# Kuryr-Kubernetes
+
+## Kuryr components
+
+--
+* kuryr-controller
+  * Responsible for OpenStack API operations.
+  * Watches Kubernetes resources (through K8s API) and reacts to events by CRUD
+  on OpenStack resources.
+  * Passes information about OpenStack resources through annotations on K8s
+  resources.
+
+--
+* kuryr-daemon
+  * Running on every K8s node.
+  * Watches for new pods on the node and wires them when requested by
+  kuryr-cni.
+
+--
+* kuryr-cni
+  * Executed by CNI.
+  * Passes CNI requests to kuryr-daemon.
+
+---
+
+# Kuryr-Kubernetes
+
+## Kuryr components
+
+.eighty[.center[![Insert graphic here](assets/kuryr-diagram.png)]]
+
+---
+
+template: section_layout
+
+# Kubernetization
+## Translating Kuryr requirements into K8s primitives
+
+---
+
+# Kubernetization
+
+## Why?
+
+Why bother with:
+
+* writing Kubernetes manifests,
+* writing Dockerfiles,
+* fighting with translating odd requirements into K8s primitives
+
+?
+--
+
+Because:
+
+* Container images are great for software distribution.
+* Kubernetes is great for application deployment and management.
+  * Kuryr is just an app.
+* It's super easy for the K8s cluster administrator.
+* **Most CNI plugins offer that deplyment option.**
+
+---
+
+# Kubernetization
+
+## kuryr-controller
+
+**Requirement:** There can be only one instance of kuryr-controller
+
+---
+
+# Kuryr-Kubernetes
+
+## How to use, how to contribute
+
+* Documentation: https://docs.openstack.org/kuryr-kubernetes/latest
+--
+
+* IRC channel: [#openstack-kuryr@Freenode](irc://chat.freenode.net/openstack-kuryr)
+--
+
+* Bugs: https://bugs.launchpad.net/kuryr-kubernetes
+--
+
+* How to contribute: https://wiki.openstack.org/wiki/How_To_Contribute
+
+---
+
+template: section_layout
+
+![CC](assets/cc.svg)
+.medium-text[
+Slides are available on
+
+http://creativecommons.org/licenses/by/4.0/
+]
+
+---
+
+template: thank_you
+
+# Q&A
+
+## Thank you!
+
+**Slides can be found at:**
+
+- https://dulek.github.io/kuryr-kubernetization
+- https://github.com/dulek/kuryr-kubernetization
+
+**Michał Dulko**
+
+![email](assets/email.png)   [mdulko@redhat.com](mailto:mdulko@redhat.com)
+![irc](assets/irc.png)   [dulek (freenode)](irc://chat.freenode.net/dulek,isnick)
+
+
+    </textarea>
+    <script src="remark.js" type="text/javascript"></script>
+    <script type="text/javascript">
+      var slideshow = remark.create({
+        ratio: '16:9',
+        slideNumberFormat: '%current%   <span class="designator">How to make a Kubernetes app from an OpenStack service? · November 2018 · OpenStack Summit Berlin</span>',
+        countIncrementalSlides: false
+      });
+    </script>
+  </body>
+</html>
+
+<!-- vim: set ft=markdown : -->
