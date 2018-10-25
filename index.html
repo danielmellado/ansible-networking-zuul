@@ -265,7 +265,13 @@ Because:
 
 ## kuryr-controller
 
-**Requirement:** There can be only one instance of kuryr-controller
+**Requirement:** There needs to be fixed amount of kuryr-controllers.
+
+**Solution:** Deployments.
+
+```
+kind: Deployment
+```
 
 ---
 
