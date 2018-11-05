@@ -182,15 +182,15 @@ body {
 /* Two-column layout */
 .left-column {
     width: 49%;
-    height: 64%;
+    height: 80%;
     float: left;
-    margin-top: 40px;
+    #margin-top: 40px;
 }
 .right-column {
     width: 49%;
-    height: 64%;
+    height: 80%;
     float: right;
-    margin-top: 40px;
+    #margin-top: 40px;
 }
 .left-column p:first-of-type {
     margin-top: 0px;
@@ -311,7 +311,7 @@ table tbody tr:nth-child(even) {
  *****************************************************************************/
 .remark-code * {
     background-color: #DCDCDC;
-    font-size: 21.4px;
+    font-size: 18px;
 }
 .remark-code-line {
     padding-left: 13.4px;

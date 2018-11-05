@@ -265,13 +265,309 @@ Because:
 
 ## kuryr-controller
 
-**Requirement:** There needs to be fixed amount of kuryr-controllers.
+**Requirement:** There needs to be fixed amount of kuryr-controllers.<br/>
+**OpenStack solution**: Pacemaker.
 
-**Solution:** Deployments.
+--
 
-```
+**K8s Solution:** K8s Deployments.
+
+```yaml
+apiVersion: apps/v1beta1
 kind: Deployment
+metadata:
+  name: kuryr-controller
+spec:
+  replicas: 1
+  template:
+    metadata:
+      name: kuryr-controller
+    spec:
+      containers:
+      - image: kuryr/controller
+        name: controller
 ```
+
+---
+
+# Kubernetization
+
+## kuryr-controller
+
+**Requirement:** Leader election for A/P HA.<br/>
+**OpenStack solution:** Tooz + etcd/Redis/zookeeper
+
+--
+
+**K8s Solution:** sidecar container doing leader election
+
+```yaml
+spec:
+  containers:
+  - image: kuryr/controller
+    name: kuryr-controller
+  - image: gcr.io/google_containers/leader-elector:0.5
+    name: leader-elector
+    args:
+    - "--election=kuryr-controller"
+    - "--http=0.0.0.0:8867"
+    - "--ttl=5s"
+    ports:
+    - containerPort: 8867
+      protocol: TCP
+```
+
+---
+
+# Kubernetization
+
+## kuryr-controller
+
+**Requirement:** Secure access to K8s API<br/>
+
+--
+
+**K8s Solution:** ServiceAccounts
+
+.left-column[
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kuryr
+rules:
+- apiGroups: [""]
+  resources:
+  - pods
+  verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kuryr
+```
+]
+
+.right-column[
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kuryr
+subjects:
+- kind: ServiceAccount
+  name: kuryr
+---
+# In Deployment's Pod spec:
+spec:
+  serviceAccountName: kuryr-controller
+```
+]
+
+---
+
+# Kubernetization
+
+## kuryr-controller
+
+**Requirement:** Provide configuration in kuryr.conf file
+**OpenStack solution:** Deployment tool handles that.
+
+--
+
+**K8s Solution:** ConfigMaps
+
+.left-column[
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kuryr-config
+data:
+  kuryr.conf: |+
+    [DEFAULT]
+    debug = true
+```
+]
+.right-column[
+```yaml
+# In Deployment's Pod spec:
+volumes:
+- name: config-volume
+  configMap:
+    name: kuryr-config
+    defaultMode: 0666
+# In Pod's container spec:
+volumeMounts:
+- name: config-volume
+  mountPath: "/etc/kuryr/kuryr.conf"
+  subPath: kuryr.conf
+```
+]
+
+---
+
+# Kubernetization
+
+## kuryr-controller
+
+**Requirement:** Access to OpenStack API certificates and keys
+
+--
+
+**K8s Solution:** Secrets + ConfigMaps
+
+.left-column[
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: kuryr-certificates
+type: Opaque
+data:
+  kuryr-ca-bundle.crt: "<base64-cert>"
+```
+]
+.right-column[
+```yaml
+# In Deployment's Pod spec:
+volumes:
+- name: certificates-volume
+  secret:
+    secretName: kuryr-certificates
+# In Pod's container spec
+volumeMounts:
+- name: certificates-volume
+  mountPath: "/etc/ssl/certs/os-ca.crt"
+  subPath: kuryr-ca-bundle.crt
+  readOnly: true
+```
+]
+
+---
+
+# Kubernetization
+
+## kuryr-controller
+
+**Issue:** Chicken-and-egg problem: how will kuryr-controller pod networking
+get wired without kuryr-controller pod running?!
+
+--
+
+**Solution:** Using host networking for that pod.
+
+```yaml
+# In Deployment's Pod spec:
+spec:
+  serviceAccountName: kuryr
+  hostNetwork: true
+  priorityClassName: system-node-critical
+```
+
+--
+
+**Disadvantage:** Port conflicts, security issues.
+
+---
+
+# Kubernetization
+
+## kuryr-daemon
+
+**Requirement:** kuryr-daemon should run on every K8s node.
+
+--
+
+**Solution:** K8s DaemonSets.
+
+```yaml
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: kuryr-cni
+spec:
+  template:
+    metadata:
+      name: kuryr-cni
+    spec:
+      - name: kuryr-cni
+        image: kuryr/cni
+```
+
+---
+
+# Kubernetization
+
+## kuryr-daemon
+
+**Requirement:** Provide configuration in kuryr.conf file.
+
+**Solution:** ConfigMaps
+
+<hr />
+
+**Requirement:** Secure access to K8s API<br/>
+
+**K8s Solution:** ServiceAccounts
+
+<hr />
+
+**Requirement:** Needs write access to host's kernel networking<br/>
+
+**K8s Solution:** host-networking + privileged container
+
+```yaml
+# In DaemonSet's Pod spec:
+hostNetwork: true
+
+# In Pod's container spec:
+securityContext:
+  privileged: true
+```
+
+---
+
+# Kubernetization
+
+## kuryr-daemon
+
+**Requirement:** Injecting kuryr-cni executable and CNI configuration
+
+--
+
+**Solution:** Mounting required host directories
+
+```yaml
+# In DaemonSet's Pod spec:
+volumes:
+- name: bin
+  hostPath:
+	path: "/opt/cni/bin"
+- name: net-conf
+  hostPath:
+	path: "/etc/cni/net.d"
+# In Pod's container spec:
+volumeMounts:
+- name: bin
+  mountPath: "/opt/cni/bin"
+- name: net-conf
+  mountPath: "/etc/cni/net.d"
+```
+
+---
+
+# Kubernetization
+
+## Injecting Python executable
+
+---
+
+# Kubernetization
+
+## Injecting Python executable
 
 ---
 
