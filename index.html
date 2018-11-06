@@ -563,11 +563,128 @@ volumeMounts:
 
 ## Injecting Python executable
 
+###Motivations:
+
+* Easy distribution
+* Easy installation
+* Easy upgrade
+
+--
+
+###Challenges:
+
+* It's not a binary, it's a Python script
+* Dependencies distribution and conflicts
+* Python availability and version mismatches
+
 ---
 
 # Kubernetization
 
-## Injecting Python executable
+## Injecting Python executable - approach #1
+
+.left-column[
+### Solution
+
+Just use [PyInstaller](https://www.pyinstaller.org/) to compile the Python
+app and its dependencies into a binary and inject it.
+
+]
+
+--
+
+.right-column[
+.center[![email](assets/pyinstaller.ico)]
+]
+
+---
+
+# Kubernetization
+
+## Injecting Python executable - approach #1
+
+.left-column[
+### Solution
+
+Just use [PyInstaller](https://www.pyinstaller.org/) to compile the Python
+app and its dependencies into a binary and inject it.
+
+### Issues
+
+* Complicated build process (need intermediate "builder" container).
+* Weird issues with HTTP connection termination.
+* PyInstaller changes module paths, so some tricky checks in os.vif started to
+  fail.
+
+]
+
+.right-column[
+.center[![email](assets/pyinstaller.ico)]
+]
+
+---
+
+# Kubernetization
+
+## Injecting Python executable - approach #2
+
+### Solution
+
+**Python virtual environment** - just copy it onto the host.
+
+--
+
+### Issues
+
+* venvs contain the Python binary - potential CPU architecture mismatches.
+* `--relocatable` option simply doesn't work.
+
+---
+
+# Kubernetization
+
+## Injecting Python executable - approach #3 (almost the right one)
+
+### Solution
+
+`docker exec` the kuryr-cni executable inside the container and pass the
+stdin and stdout.
+
+<pre>
+envs=($(env | grep ^CNI_))
+docker exec ${envs[@]/#/--env } -i "${CONTAINERID}" kuryr-cni \
+  --config-file /etc/kuryr/kuryr.conf
+</pre>
+
+`$CONTAINERID` can be fetched from K8s API.
+
+--
+
+### Issues
+
+* Docker API >= v1.24 is required to pass env vars.
+* Some latency from running command through Docker.
+* K8s API unreliable when getting CONTAINERID.
+
+---
+
+# Kubernetization
+
+## Injecting Python executable - approach #4 (or #3.5)
+
+### Solution
+
+Use approach #3, but query Docker API for `$CONTAINERID`.
+
+--
+
+### Issues
+
+* Docker API >= v1.24 is required to pass env vars.
+* Some latency from running command through Docker.
+* Some more latency from querying Docker API for CONTAINERID.
+* Need to assume that labels added to containers created by K8s pods are a 
+  stable API.
 
 ---
 
@@ -576,14 +693,8 @@ volumeMounts:
 ## How to use, how to contribute
 
 * Documentation: https://docs.openstack.org/kuryr-kubernetes/latest
---
-
 * IRC channel: [#openstack-kuryr@Freenode](irc://chat.freenode.net/openstack-kuryr)
---
-
 * Bugs: https://bugs.launchpad.net/kuryr-kubernetes
---
-
 * How to contribute: https://wiki.openstack.org/wiki/How_To_Contribute
 
 ---
