@@ -688,6 +688,39 @@ Use approach #3, but query Docker API for `$CONTAINERID`.
 
 ---
 
+# Conclusions
+
+## Did we learned something?
+
+* It's working and makes distribution, deployment and management of
+  Kuryr-Kubernetes installation easy for the admin.
+
+--
+* You shouldn't expect to get this right at first try - there's too many
+  variables.
+
+--
+  * We've ended up backporting injection solutions through #1 to #4.
+
+--
+* Some stuff gets easier when you assume it will only work when application is
+  run on Kubernetes cluster.
+
+--
+
+## New K8s features
+
+--
+
+* **Operators**
+
+--
+  * Simplified: allow you to write a K8s app that will manage your app.
+  * Could be useful e.g. with Kuryr in HA mode.
+  * No guarantee or ETA when we'll start looking at this.
+
+---
+
 # Kuryr-Kubernetes
 
 ## How to use, how to contribute
