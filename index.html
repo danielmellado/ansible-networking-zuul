@@ -372,7 +372,7 @@ spec:
 
 ## kuryr-controller
 
-**Requirement:** Provide configuration in kuryr.conf file
+**Requirement:** Provide configuration in kuryr.conf file<br />
 **OpenStack solution:** Deployment tool handles that.
 
 --
@@ -513,19 +513,69 @@ spec:
 
 **K8s Solution:** ServiceAccounts
 
-<hr />
+---
+
+# Kubernetization
+
+## kuryr-daemon
 
 **Requirement:** Needs write access to host's kernel networking<br/>
 
-**K8s Solution:** host-networking + privileged container
+--
 
+**K8s Solution:** host-networking + privileged container + mount
+`/var/run/openvswitch` and `/proc`
+
+.left-column[
 ```yaml
 # In DaemonSet's Pod spec:
 hostNetwork: true
+volumes:
+- name: proc
+  hostPath:
+	path: /proc
+- name: openvswitch
+  hostPath:
+	path: /var/run/openvswitch
+```
+]
 
+.right-column[
+```yaml
 # In Pod's container spec:
 securityContext:
   privileged: true
+volumeMounts:
+- name: proc
+  mountPath: /host_proc
+- name: openvswitch
+  mountPath: /var/run/openvswitch
+```
+]
+
+---
+
+# Kubernetization
+
+## kuryr-daemon
+
+**Requirement:** Pass some info from Pod's spec into the pod.
+
+--
+
+**Solution:** Pass environment variables.
+
+```yaml
+# In Pod's container spec:
+env:
+- name: KUBERNETES_NODE_NAME
+  valueFrom:
+	fieldRef:
+	  fieldPath: spec.nodeName
+- name: KURYR_CNI_POD_NAME
+  valueFrom:
+	fieldRef:
+	  fieldPath: metadata.name
 ```
 
 ---
@@ -568,6 +618,7 @@ volumeMounts:
 * Easy distribution
 * Easy installation
 * Easy upgrade
+* Other CNI plugins do that
 
 --
 
@@ -613,7 +664,7 @@ app and its dependencies into a binary and inject it.
 
 * Complicated build process (need intermediate "builder" container).
 * Weird issues with HTTP connection termination.
-* PyInstaller changes module paths, so some tricky checks in os.vif started to
+* PyInstaller changes module paths, so some tricky checks in `os.vif` started to
   fail.
 
 ]
